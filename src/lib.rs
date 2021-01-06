@@ -4,9 +4,11 @@ use std::convert::AsRef;
 use std::fmt;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use regex::Regex;
-use chrono::{DateTime, NaiveDateTime, Utc};
 
 pub type Symbol = u64;
+mod symbol;
+pub mod error;
+pub use symbol::*;
 
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub enum ID {
@@ -101,10 +103,10 @@ pub enum ConstraintKind {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum IntConstraint {
-    Lower(i64),
-    Larger(i64),
-    LowerOrEqual(i64),
-    LargerOrEqual(i64),
+    LessThan(i64),
+    GreaterThan(i64),
+    LessOrEqual(i64),
+    GreaterOrEqual(i64),
     Equal(i64),
     In(HashSet<i64>),
     NotIn(HashSet<i64>),
@@ -148,10 +150,10 @@ impl Constraint {
         match (id, &self.kind) {
             (ID::Variable(_), _) => panic!("should not check constraint on a variable"),
             (ID::Integer(i), ConstraintKind::Int(c)) => match c {
-                IntConstraint::Lower(j) => *i < *j,
-                IntConstraint::Larger(j) => *i > *j,
-                IntConstraint::LowerOrEqual(j) => *i <= *j,
-                IntConstraint::LargerOrEqual(j) => *i >= *j,
+                IntConstraint::LessThan(j) => *i < *j,
+                IntConstraint::GreaterThan(j) => *i > *j,
+                IntConstraint::LessOrEqual(j) => *i <= *j,
+                IntConstraint::GreaterOrEqual(j) => *i >= *j,
                 IntConstraint::Equal(j) => *i == *j,
                 IntConstraint::In(h) => h.contains(i),
                 IntConstraint::NotIn(h) => !h.contains(i),
@@ -203,19 +205,16 @@ impl fmt::Display for Fact {
 
 impl Rule {
     pub fn apply(&self, facts: &HashSet<Fact>, new_facts: &mut Vec<Fact>) {
+        // gather all of the variables used in that rule
         let variables_set = self
             .body
             .iter()
             .flat_map(|pred| {
                 pred.ids
                     .iter()
-                    .filter(|id| match id {
-                        ID::Variable(_) => true,
-                        _ => false,
-                    })
-                    .map(|id| match id {
-                        ID::Variable(i) => *i,
-                        _ => unreachable!(),
+                    .filter_map(|id| match id {
+                        ID::Variable(i) => Some(*i),
+                        _ => None,
                     })
             })
             .collect::<HashSet<_>>();
@@ -488,8 +487,15 @@ impl World {
         self.rules.push(rule);
     }
 
-    pub fn run(&mut self) {
+    pub fn run(&mut self) -> Result<(), crate::error::RunLimit> {
+        self.run_with_limits(RunLimits::default())
+    }
+
+    pub fn run_with_limits(&mut self, limits: RunLimits) -> Result<(), crate::error::RunLimit> {
+        let start = SystemTime::now();
+        let time_limit = start + limits.max_time;
         let mut index = 0;
+
         loop {
             let mut new_facts: Vec<Fact> = Vec::new();
             for rule in self.rules.iter() {
@@ -504,10 +510,21 @@ impl World {
             }
 
             index += 1;
-            if index == 100 {
-                panic!();
+            if index == limits.max_iterations {
+                return Err(crate::error::RunLimit::TooManyIterations);
+            }
+
+            if self.facts.len() >= limits.max_facts as usize {
+                return Err(crate::error::RunLimit::TooManyFacts);
+            }
+
+            let now = SystemTime::now();
+            if now >= time_limit {
+                return Err(crate::error::RunLimit::Timeout);
             }
         }
+
+        Ok(())
     }
 
     pub fn query(&self, pred: Predicate) -> Vec<&Fact> {
@@ -538,162 +555,25 @@ impl World {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Default)]
-pub struct SymbolTable {
-    pub symbols: Vec<String>,
-}
-
-impl SymbolTable {
-    pub fn new() -> Self {
-        SymbolTable::default()
-    }
-
-    pub fn insert(&mut self, s: &str) -> Symbol {
-        match self.symbols.iter().position(|sym| sym.as_str() == s) {
-            Some(index) => index as u64,
-            None => {
-                self.symbols.push(s.to_string());
-                (self.symbols.len() - 1) as u64
-            }
-        }
-    }
-
-    pub fn add(&mut self, s: &str) -> ID {
-        let id = self.insert(s);
-        ID::Symbol(id)
-    }
-
-    pub fn get(&self, s: &str) -> Option<Symbol> {
-        self.symbols
-            .iter()
-            .position(|sym| sym.as_str() == s)
-            .map(|i| i as u64)
-    }
-
-    pub fn print_symbol(&self, s: Symbol) -> String {
-      self.symbols.get(s as usize).map(|s| s.to_string()).unwrap_or_else(|| format!("<{}?>", s))
-    }
-
-    pub fn print_world(&self, w: &World) -> String {
-        let facts = w
-            .facts
-            .iter()
-            .map(|f| self.print_fact(f))
-            .collect::<Vec<_>>();
-        let rules = w
-            .rules
-            .iter()
-            .map(|r| self.print_rule(r))
-            .collect::<Vec<_>>();
-        format!("World {{\n  facts: {:#?}\n  rules: {:#?}\n}}", facts, rules)
-    }
-
-    pub fn print_fact(&self, f: &Fact) -> String {
-        self.print_predicate(&f.predicate)
-    }
-
-    pub fn print_predicate(&self, p: &Predicate) -> String {
-        let strings = p
-            .ids
-            .iter()
-            .map(|id| match id {
-                ID::Variable(i) => format!("${}", self.print_symbol(*i as u64)),
-                ID::Integer(i) => i.to_string(),
-                ID::Str(s) => format!("\"{}\"", s),
-                ID::Symbol(index) => format!("#{}", self.print_symbol(*index as u64)),
-                ID::Date(d) => {
-                    let t = UNIX_EPOCH + Duration::from_secs(*d);
-                    format!("{:?}", t)
-                },
-                ID::Bytes(s) => format!("hex:{}", hex::encode(s)),
-            })
-            .collect::<Vec<_>>();
-        format!(
-            "{}({})",
-            self.symbols
-                .get(p.name as usize)
-                .map(|s| s.as_str())
-                .unwrap_or("<?>"),
-            strings.join(", ")
-        )
-    }
-
-    pub fn print_constraint(&self, c: &Constraint) -> String {
-        match &c.kind {
-            ConstraintKind::Int(IntConstraint::Lower(i)) => format!("${} < {}", self.print_symbol(c.id as u64), i),
-            ConstraintKind::Int(IntConstraint::Larger(i)) => format!("${} > {}", self.print_symbol(c.id as u64), i),
-            ConstraintKind::Int(IntConstraint::LowerOrEqual(i)) => format!("${} <= {}", self.print_symbol(c.id as u64), i),
-            ConstraintKind::Int(IntConstraint::LargerOrEqual(i)) => format!("${} >= {}", self.print_symbol(c.id as u64), i),
-            ConstraintKind::Int(IntConstraint::Equal(i)) => format!("${} == {}", self.print_symbol(c.id as u64), i),
-            ConstraintKind::Int(IntConstraint::In(i)) => format!("${} in {:?}", self.print_symbol(c.id as u64), i),
-            ConstraintKind::Int(IntConstraint::NotIn(i)) => format!("${} not in {:?}", self.print_symbol(c.id as u64), i),
-            ConstraintKind::Str(StrConstraint::Prefix(i)) => format!("${} matches {}*", self.print_symbol(c.id as u64), i),
-            ConstraintKind::Str(StrConstraint::Suffix(i)) => format!("${} matches *{}", self.print_symbol(c.id as u64), i),
-            ConstraintKind::Str(StrConstraint::Equal(i)) => format!("${} == {}", self.print_symbol(c.id as u64), i),
-            ConstraintKind::Str(StrConstraint::Regex(i)) => format!("${} matches /{}/", self.print_symbol(c.id as u64), i),
-            ConstraintKind::Str(StrConstraint::In(i)) => format!("${} in {:?}", self.print_symbol(c.id as u64), i),
-            ConstraintKind::Str(StrConstraint::NotIn(i)) => format!("${} not in {:?}", self.print_symbol(c.id as u64), i),
-            ConstraintKind::Date(DateConstraint::Before(i)) => {
-              let date = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(*i as i64, 0), Utc);
-              format!("${} <= {}", self.print_symbol(c.id as u64), date.to_rfc3339())
-            },
-            ConstraintKind::Date(DateConstraint::After(i)) => {
-              let date = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(*i as i64, 0), Utc);
-              format!("${} >= {}", self.print_symbol(c.id as u64), date.to_rfc3339())
-            },
-            ConstraintKind::Symbol(SymbolConstraint::In(i)) => format!("${} in {:?}", c.id, i),
-            ConstraintKind::Symbol(SymbolConstraint::NotIn(i)) => {
-                format!("${} not in {:?}", self.print_symbol(c.id as u64), i)
-            }
-            ConstraintKind::Bytes(BytesConstraint::Equal(i)) => format!("${} == hex:{}", c.id, hex::encode(i)),
-            ConstraintKind::Bytes(BytesConstraint::In(i)) => {
-                format!("${} in {:?}", self.print_symbol(c.id as u64), i.iter()
-                        .map(|s| format!("hex:{}", hex::encode(s))).collect::<HashSet<_>>())
-            },
-            ConstraintKind::Bytes(BytesConstraint::NotIn(i)) => {
-                format!("${} not in {:?}", self.print_symbol(c.id as u64), i.iter()
-                        .map(|s| format!("hex:{}", hex::encode(s))).collect::<HashSet<_>>())
-            },
-        }
-    }
-
-    pub fn print_rule(&self, r: &Rule) -> String {
-        let res = self.print_predicate(&r.head);
-        let preds: Vec<_> = r.body.iter().map(|p| self.print_predicate(p)).collect();
-        let constraints: Vec<_> = r
-            .constraints
-            .iter()
-            .map(|c| self.print_constraint(c))
-            .collect();
-
-        let c = if constraints.is_empty() {
-          String::new()
-        } else {
-          format!(" @ {}", constraints.join(", "))
-        };
-
-        format!(
-            "*{} <- {}{}",
-            res,
-            preds.join(", "),
-            c
-        )
-    }
-
-    pub fn print_caveat(&self, c: &Caveat) -> String {
-        let queries = c
-            .queries
-            .iter()
-            .map(|r| self.print_rule(r))
-            .collect::<Vec<_>>();
-
-        queries.join(" || ")
-    }
-}
-
 pub fn sym(syms: &mut SymbolTable, name: &str) -> ID {
     let id = syms.insert(name);
     ID::Symbol(id)
+}
+
+pub struct RunLimits {
+    pub max_facts: u32,
+    pub max_iterations: u32,
+    pub max_time: Duration,
+}
+
+impl std::default::Default for RunLimits {
+    fn default() -> Self {
+        RunLimits {
+            max_facts: 1000,
+            max_iterations: 100,
+            max_time: Duration::from_millis(1),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -744,7 +624,7 @@ mod tests {
         println!("adding r2: {}", syms.print_rule(&r2));
         w.add_rule(r2);
 
-        w.run();
+        w.run().unwrap();
 
         println!("parents:");
         let res = w.query(pred(parent, &[var(&mut syms, "parent"), var(&mut syms, "child")]));
@@ -761,7 +641,7 @@ mod tests {
             w.query(pred(grandparent, &[var(&mut syms, "grandparent"), var(&mut syms, "grandchild")]))
         );
         w.add_fact(fact(parent, &[&c, &e]));
-        w.run();
+        w.run().unwrap();
         let mut res = w.query(pred(grandparent, &[var(&mut syms, "grandparent"), var(&mut syms, "grandchild")]));
         println!("grandparents after inserting parent(C, E): {:?}", res);
 
@@ -844,7 +724,7 @@ mod tests {
             ],
             &[Constraint {
                 id: syms.insert("id") as u32,
-                kind: ConstraintKind::Int(IntConstraint::Lower(1)),
+                kind: ConstraintKind::Int(IntConstraint::LessThan(1)),
             }],
         ));
         for fact in &res {
