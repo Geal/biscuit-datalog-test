@@ -1042,4 +1042,48 @@ mod tests {
 
         assert!(res.is_empty());
     }
+
+    #[test]
+    fn int_expr() {
+        let mut w = World::new();
+        let mut syms = SymbolTable::new();
+
+        let abc = syms.add("abc");
+        let def = syms.add("def");
+        let x = syms.insert("x");
+        let less_than = syms.insert("less_than");
+
+        w.add_fact(fact(x, &[&int(-2), &abc]));
+        w.add_fact(fact(x, &[&int(0), &def]));
+
+        let r1 = expressed_rule(
+            less_than,
+            &[var(&mut syms, "nb"), var(&mut syms, "val")],
+            &[pred(x, &[var(&mut syms, "nb"), var(&mut syms, "val")])],
+            &[
+                Expression { ops: vec![
+                    Op::Value(ID::Integer(5)),
+                    Op::Value(ID::Integer(-4)),
+                    Op::Binary(Binary::Add),
+                    Op::Unary(Unary::Negate),
+                    Op::Value(var(&mut syms, "nb")),
+                    Op::Binary(Binary::LessThan),
+                ] },
+
+            ],
+        );
+
+        println!("testing r1: {}", syms.print_rule(&r1));
+        let res = w.query_rule(r1);
+        for fact in &res {
+            println!("\t{}", syms.print_fact(fact));
+        }
+
+        let res2 = res.iter().cloned().collect::<HashSet<_>>();
+        let compared = (vec![fact(less_than, &[&int(0), &def])])
+            .drain(..)
+            .collect::<HashSet<_>>();
+        assert_eq!(res2, compared);
+
+    }
 }
