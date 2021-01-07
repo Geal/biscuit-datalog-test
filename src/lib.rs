@@ -1129,13 +1129,15 @@ mod tests {
             ],
         );
 
-        println!("testing r1: {}", syms.print_rule(&r1));
+        println!("world:\n{}\n", syms.print_world(&w));
+        println!("\ntesting r1: {}\n", syms.print_rule(&r1));
         let res = w.query_rule(r1);
         for fact in &res {
             println!("\t{}", syms.print_fact(fact));
         }
 
         let res2 = res.iter().cloned().collect::<HashSet<_>>();
+        println!("got res: {:?}", res2);
         let compared = (vec![fact(less_than, &[&int(0), &def])])
             .drain(..)
             .collect::<HashSet<_>>();
