@@ -298,7 +298,32 @@ impl<'a> Iterator for CombineIt<'a> {
     fn next(&mut self) -> Option<HashMap<u32, ID>> {
         // if we're the last iterator in the recursive chain, stop here
         if self.predicates.is_empty() {
-            return self.variables.complete();
+            //return None;
+            //return self.variables.complete();
+            match self.variables.complete() {
+                None => return None,
+                // we got a complete set of variables, let's test the expressions
+                Some(variables) => {
+                    println!("predicates empty, will test variables: {:?}", variables);
+                    let mut valid = true;
+                    for e in self.expressions.iter() {
+                        match e.evaluate(&variables) {
+                            Some(ID::Bool(true)) => {},
+                            res => {
+                                println!("expr returned {:?}", res);
+                                valid = false;
+                                break;
+                            },
+                        }
+                    }
+
+                    if valid {
+                        return Some(variables);
+                    } else {
+                        return None;
+                    }
+                },
+            }
         }
 
         loop {
@@ -335,10 +360,39 @@ impl<'a> Iterator for CombineIt<'a> {
                         }
 
                         if self.predicates.len() == 1 {
+                            /*
                             if let Some(val) = vars.complete() {
                                 return Some(val);
                             } else {
                                 continue;
+                            }
+                            */
+                            match vars.complete() {
+                                None => {
+                                    println!("variables not complete, continue");
+                                    continue;
+                                },
+                                // we got a complete set of variables, let's test the expressions
+                                Some(variables) => {
+                                    println!("will test with variables: {:?}", variables);
+                                    let mut valid = true;
+                                    for e in self.expressions.iter() {
+                                        match e.evaluate(&variables) {
+                                            Some(ID::Bool(true)) => {println!("expression returned true");},
+                                            e => {
+                                                println!("expression returned {:?}", e);
+                                                valid = false;
+                                                break;
+                                            },
+                                        }
+                                    }
+
+                                    if valid {
+                                        return Some(variables);
+                                    } else {
+                                        continue;
+                                    }
+                                },
                             }
                         } else {
                             // create a new iterator with the matched variables, the rest of the predicates,
