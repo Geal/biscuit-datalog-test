@@ -135,6 +135,10 @@ impl SymbolTable {
         }
     }
 
+    pub fn print_expression(&self, e: &crate::expression::Expression) -> String {
+        crate::expression::print(&e.ops, self)
+    }
+
     pub fn print_rule(&self, r: &Rule) -> String {
         let res = self.print_predicate(&r.head);
         let preds: Vec<_> = r.body.iter().map(|p| self.print_predicate(p)).collect();
@@ -144,6 +148,12 @@ impl SymbolTable {
             .map(|c| self.print_constraint(c))
             .collect();
 
+        let expressions: Vec<_> = r
+            .expressions
+            .iter()
+            .map(|c| self.print_expression(c))
+            .collect();
+
         let c = if constraints.is_empty() {
           String::new()
         } else {
@@ -151,10 +161,11 @@ impl SymbolTable {
         };
 
         format!(
-            "{} <- {}{}",
+            "{} <- {}{}{}",
             res,
             preds.join(", "),
-            c
+            c,
+            format!("@@ {}", expressions.join(", "))
         )
     }
 

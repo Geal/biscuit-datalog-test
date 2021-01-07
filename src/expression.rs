@@ -101,9 +101,9 @@ impl Expression {
     }
 }
 
-fn print(ops: &[Op], symbols: &SymbolTable) -> String {
+pub fn print(ops: &[Op], symbols: &SymbolTable) -> String {
     let mut stack: Vec<String> = Vec::new();
-    let mut s = "pouet".to_string();
+    let s = "pouet".to_string();
 
     for op in ops {
         println!("op: {:?}\t| stack: {:?}", op, stack);
@@ -126,9 +126,6 @@ fn print(ops: &[Op], symbols: &SymbolTable) -> String {
             }
         }
     }
-    /*for op in ops {
-
-    }*/
 
     if stack.len() == 1 {
         stack.remove(0)
