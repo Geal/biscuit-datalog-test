@@ -7,8 +7,10 @@ use regex::Regex;
 
 pub type Symbol = u64;
 mod symbol;
+mod expression;
 pub mod error;
 pub use symbol::*;
+pub use expression::*;
 
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub enum ID {
