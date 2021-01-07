@@ -99,40 +99,41 @@ impl Expression {
             None
         }
     }
-}
 
-pub fn print(ops: &[Op], symbols: &SymbolTable) -> String {
-    let mut stack: Vec<String> = Vec::new();
-    let s = "pouet".to_string();
+    pub fn print(&self, symbols: &SymbolTable) -> String {
+        let mut stack: Vec<String> = Vec::new();
+        let s = "<invalid expression>".to_string();
 
-    for op in ops {
-        println!("op: {:?}\t| stack: {:?}", op, stack);
-        match op {
-            Op::Value(i) => stack.push(symbols.print_id(i)),
-            Op::Unary(unary) => match unary {
-                Unary::Negate => match stack.pop() {
-                    None => return s,
-                    Some(s) => stack.push(format!("-{}", s)),
+        for op in self.ops.iter() {
+            println!("op: {:?}\t| stack: {:?}", op, stack);
+            match op {
+                Op::Value(i) => stack.push(symbols.print_id(&i)),
+                Op::Unary(unary) => match unary {
+                    Unary::Negate => match stack.pop() {
+                        None => return s,
+                        Some(s) => stack.push(format!("-{}", s)),
+                    },
                 },
-            },
-            Op::Binary(binary) => match (stack.pop(), stack.pop()) {
-                (Some(right), Some(left)) => match binary {
-                    Binary::LessThan => stack.push(format!("{} < {}", left, right)),
-                    Binary::GreaterThan => stack.push(format!("{} > {}", left, right)),
-                    Binary::Add => stack.push(format!("{} + {}", left, right)),
-                    Binary::And => stack.push(format!("{} && {}", left, right)),
-                },
-                _ => return s,
+                Op::Binary(binary) => match (stack.pop(), stack.pop()) {
+                    (Some(right), Some(left)) => match binary {
+                        Binary::LessThan => stack.push(format!("{} < {}", left, right)),
+                        Binary::GreaterThan => stack.push(format!("{} > {}", left, right)),
+                        Binary::Add => stack.push(format!("{} + {}", left, right)),
+                        Binary::And => stack.push(format!("{} && {}", left, right)),
+                    },
+                    _ => return s,
+                }
             }
         }
-    }
 
-    if stack.len() == 1 {
-        stack.remove(0)
-    } else {
-        "pwet".to_string()
+        if stack.len() == 1 {
+            stack.remove(0)
+        } else {
+            s
+        }
     }
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -160,9 +161,10 @@ mod tests {
             .iter().cloned().collect();
 
         println!("ops: {:?}", ops);
-        println!("print: {}", print(&ops, &symbols));
 
         let e = Expression { ops };
+        println!("print: {}", e.print(&symbols));
+
         let res = e.evaluate(&values);
         assert_eq!(res, Some(ID::Bool(true)));
         panic!();
@@ -205,13 +207,16 @@ mod tests {
         println!("ops1: {:?}", ops1);
         println!("ops2: {:?}", ops2);
         println!("ops3: {:?}", ops3);
+        let e1 = Expression { ops: ops1 };
+        let e2 = Expression { ops: ops2 };
+        let e3 = Expression { ops: ops3 };
 
-        assert_eq!(&print(&ops1, &symbols), "-1 < $var1");
+        assert_eq!(e1.print(&symbols), "-1 < $var1");
 
-        assert_eq!(&print(&ops2, &symbols), "1 < 2 + 3");
+        assert_eq!(e2.print(&symbols), "1 < 2 + 3");
 
-        assert_eq!(&print(&ops3, &symbols), "1 + 2 < 3");
-        panic!();
+        assert_eq!(e3.print(&symbols), "1 + 2 < 3");
+        //panic!();
     }
 
 }

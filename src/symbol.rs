@@ -140,7 +140,7 @@ impl SymbolTable {
     }
 
     pub fn print_expression(&self, e: &crate::expression::Expression) -> String {
-        crate::expression::print(&e.ops, self)
+        e.print(self)
     }
 
     pub fn print_rule(&self, r: &Rule) -> String {
