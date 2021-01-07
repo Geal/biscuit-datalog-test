@@ -18,6 +18,7 @@ pub enum ID {
     Str(String),
     Date(u64),
     Bytes(Vec<u8>),
+    Bool(bool),
 }
 
 impl From<&ID> for ID {
@@ -29,6 +30,7 @@ impl From<&ID> for ID {
             ID::Str(ref s) => ID::Str(s.clone()),
             ID::Date(ref d) => ID::Date(*d),
             ID::Bytes(ref b) => ID::Bytes(b.clone()),
+            ID::Bool(ref b) => ID::Bool(*b),
         }
     }
 }
