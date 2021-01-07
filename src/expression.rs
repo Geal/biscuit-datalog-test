@@ -4,7 +4,7 @@ use super::SymbolTable;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Expression {
-    ops: Vec<Op>,
+    pub ops: Vec<Op>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -55,49 +55,50 @@ impl Binary {
     }
 }
 
-fn evaluate(ops: &[Op], values: &HashMap<u32, ID>) -> Option<ID> {
-    let mut stack: Vec<ID> = Vec::new();
+impl Expression {
+    pub fn evaluate(&self, values: &HashMap<u32, ID>) -> Option<ID> {
+        let mut stack: Vec<ID> = Vec::new();
 
-    for op in ops.iter() {
-        println!("op: {:?}\t| stack: {:?}", op, stack);
-        match op {
-            Op::Value(ID::Variable(i)) => match values.get(&i) {
-                Some(id) => stack.push(id.clone()),
-                None => {
-                    println!("unknown variable {}", i);
-                    return None;
+        for op in self.ops.iter() {
+            println!("op: {:?}\t| stack: {:?}", op, stack);
+            match op {
+                Op::Value(ID::Variable(i)) => match values.get(&i) {
+                    Some(id) => stack.push(id.clone()),
+                    None => {
+                        println!("unknown variable {}", i);
+                        return None;
+                    }
                 }
-            }
-            Op::Value(id) => stack.push(id.clone()),
-            Op::Unary(unary) => match stack.pop() {
-                None => {
-                    println!("expected a value on the stack");
-                    return None;
-                }
-                Some(id) => match unary.evaluate(id) {
-                    Some(res) => stack.push(res),
-                    None => return None,
-                }
-            },
-            Op::Binary(binary) => match (stack.pop(), stack.pop()) {
-                (Some(right_id), Some(left_id)) => match binary.evaluate(left_id, right_id) {
-                    Some(res) => stack.push(res),
-                    None => return None,
+                Op::Value(id) => stack.push(id.clone()),
+                Op::Unary(unary) => match stack.pop() {
+                    None => {
+                        println!("expected a value on the stack");
+                        return None;
+                    }
+                    Some(id) => match unary.evaluate(id) {
+                        Some(res) => stack.push(res),
+                        None => return None,
+                    }
                 },
-                _ => {
-                    println!("expected two values on the stack");
-                    return None;
+                Op::Binary(binary) => match (stack.pop(), stack.pop()) {
+                    (Some(right_id), Some(left_id)) => match binary.evaluate(left_id, right_id) {
+                        Some(res) => stack.push(res),
+                        None => return None,
+                    },
+                    _ => {
+                        println!("expected two values on the stack");
+                        return None;
+                    }
                 }
             }
         }
-    }
 
-    if stack.len() == 1 {
-        Some(stack.remove(0))
-    } else {
-        None
+        if stack.len() == 1 {
+            Some(stack.remove(0))
+        } else {
+            None
+        }
     }
-
 }
 
 fn print(ops: &[Op], symbols: &SymbolTable) -> String {
@@ -163,7 +164,9 @@ mod tests {
 
         println!("ops: {:?}", ops);
         println!("print: {}", print(&ops, &symbols));
-        let res = evaluate(&ops, &values);
+
+        let e = Expression { ops };
+        let res = e.evaluate(&values);
         assert_eq!(res, Some(ID::Bool(true)));
         panic!();
     }
