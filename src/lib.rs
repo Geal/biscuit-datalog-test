@@ -82,6 +82,7 @@ pub struct Rule {
     pub head: Predicate,
     pub body: Vec<Predicate>,
     pub constraints: Vec<Constraint>,
+    pub expressions: Vec<Expression>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -195,6 +196,12 @@ impl Constraint {
     }
 }
 
+impl AsRef<Expression> for Expression {
+    fn as_ref(&self) -> &Expression {
+        self
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Caveat {
     pub queries: Vec<Rule>,
@@ -226,7 +233,7 @@ impl Rule {
         let variables = MatchedVariables::new(variables_set);
 
         new_facts.extend(
-            CombineIt::new(variables, &self.body, &self.constraints, facts).map(|h| {
+            CombineIt::new(variables, &self.body, &self.constraints, &self.expressions, facts).map(|h| {
                 let mut p = self.head.clone();
                 for index in 0..p.ids.len() {
                     let value = match &p.ids[index] {
@@ -254,6 +261,7 @@ pub struct CombineIt<'a> {
     variables: MatchedVariables,
     predicates: &'a [Predicate],
     constraints: &'a [Constraint],
+    expressions: &'a [Expression],
     all_facts: &'a HashSet<Fact>,
     current_facts: Box<dyn Iterator<Item = &'a Fact> + 'a>,
     current_it: Option<Box<CombineIt<'a>>>,
@@ -264,6 +272,7 @@ impl<'a> CombineIt<'a> {
         variables: MatchedVariables,
         predicates: &'a [Predicate],
         constraints: &'a [Constraint],
+        expressions: &'a [Expression],
         facts: &'a HashSet<Fact>,
     ) -> Self {
         let p = predicates[0].clone();
@@ -271,6 +280,7 @@ impl<'a> CombineIt<'a> {
             variables,
             predicates,
             constraints,
+            expressions,
             all_facts: facts,
             current_facts: Box::new(
                 facts
@@ -337,6 +347,7 @@ impl<'a> Iterator for CombineIt<'a> {
                                 vars,
                                 &self.predicates[1..],
                                 self.constraints,
+                                self.expressions,
                                 &self.all_facts,
                             )));
                         }
@@ -420,6 +431,7 @@ pub fn rule<I: AsRef<ID>, P: AsRef<Predicate>>(
         head: pred(head_name, head_ids),
         body: predicates.iter().map(|p| p.as_ref().clone()).collect(),
         constraints: Vec::new(),
+        expressions: Vec::new(),
     }
 }
 
@@ -433,6 +445,21 @@ pub fn constrained_rule<I: AsRef<ID>, P: AsRef<Predicate>, C: AsRef<Constraint>>
         head: pred(head_name, head_ids),
         body: predicates.iter().map(|p| p.as_ref().clone()).collect(),
         constraints: constraints.iter().map(|c| c.as_ref().clone()).collect(),
+        expressions: Vec::new(),
+    }
+}
+
+pub fn expressed_rule<I: AsRef<ID>, P: AsRef<Predicate>, C: AsRef<Expression>>(
+    head_name: Symbol,
+    head_ids: &[I],
+    predicates: &[P],
+    expressions: &[C],
+) -> Rule {
+    Rule {
+        head: pred(head_name, head_ids),
+        body: predicates.iter().map(|p| p.as_ref().clone()).collect(),
+        constraints: Vec::new(),
+        expressions: expressions.iter().map(|c| c.as_ref().clone()).collect(),
     }
 }
 
