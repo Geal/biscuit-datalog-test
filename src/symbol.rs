@@ -146,11 +146,6 @@ impl SymbolTable {
     pub fn print_rule(&self, r: &Rule) -> String {
         let res = self.print_predicate(&r.head);
         let preds: Vec<_> = r.body.iter().map(|p| self.print_predicate(p)).collect();
-        let constraints: Vec<_> = r
-            .constraints
-            .iter()
-            .map(|c| self.print_constraint(c))
-            .collect();
 
         let expressions: Vec<_> = r
             .expressions
@@ -158,18 +153,11 @@ impl SymbolTable {
             .map(|c| self.print_expression(c))
             .collect();
 
-        let c = if constraints.is_empty() {
-          String::new()
-        } else {
-          format!(" @ {}", constraints.join(", "))
-        };
-
         format!(
-            "{} <- {}{}{}",
+            "{} <- {}{}",
             res,
             preds.join(", "),
-            c,
-            format!("@@ {}", expressions.join(", "))
+            format!(" @ {}", expressions.join(", "))
         )
     }
 
