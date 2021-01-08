@@ -802,6 +802,7 @@ mod tests {
         assert_eq!(res2, compared);
 
         // test constraints
+        /*
         let res = w.query_rule(constrained_rule(
             join,
             &[var(&mut syms, "left"), var(&mut syms, "right")],
@@ -813,6 +814,21 @@ mod tests {
                 id: syms.insert("id") as u32,
                 kind: ConstraintKind::Int(IntConstraint::LessThan(1)),
             }],
+        ));
+        */
+
+        let res = w.query_rule(expressed_rule(
+            join,
+            &[var(&mut syms, "left"), var(&mut syms, "right")],
+            &[
+                pred(t1, &[var(&mut syms, "id"), var(&mut syms, "left")]),
+                pred(t2, &[var(&mut syms, "t2_id"), var(&mut syms, "right"), var(&mut syms, "id")]),
+            ],
+            &[ Expression { ops: vec![
+                Op::Value(var(&mut syms, "id")),
+                Op::Value(ID::Integer(1)),
+                Op::Binary(Binary::LessThan),
+            ] } ],
         ));
         for fact in &res {
             println!("\t{}", syms.print_fact(fact));
@@ -843,6 +859,7 @@ mod tests {
         w.add_fact(fact(route, &[&int(4), &app_1, &string("mx.example.com")]));
 
         fn test_suffix(w: &World, syms: &mut SymbolTable, suff: Symbol, route: Symbol, suffix: &str) -> Vec<Fact> {
+            /*
             w.query_rule(constrained_rule(
                 suff,
                 &[var(syms, "app_id"), var(syms, "domain_name")],
@@ -854,6 +871,20 @@ mod tests {
                     id: syms.insert("domain_name") as u32,
                     kind: ConstraintKind::Str(StrConstraint::Suffix(suffix.to_string())),
                 }],
+            ))
+            */
+            w.query_rule(expressed_rule(
+                suff,
+                &[var(syms, "app_id"), var(syms, "domain_name")],
+                &[pred(
+                    route,
+                    &[var(syms, "route_id"), var(syms, "app_id"), var(syms, "domain_name")],
+                )],
+                &[ Expression { ops: vec![
+                    Op::Value(var(syms, "domain_name")),
+                    Op::Value(ID::Str(suffix.to_string())),
+                    Op::Binary(Binary::Suffix),
+                ] } ],
             ))
         }
 
@@ -907,6 +938,7 @@ mod tests {
         w.add_fact(fact(x, &[&date(&t1), &abc]));
         w.add_fact(fact(x, &[&date(&t3), &def]));
 
+        /*
         let r1 = constrained_rule(
             before,
             &[var(&mut syms, "date"), var(&mut syms, "val")],
@@ -922,6 +954,25 @@ mod tests {
                 },
             ],
         );
+        */
+        let r1 = expressed_rule(
+            before,
+            &[var(&mut syms, "date"), var(&mut syms, "val")],
+            &[pred(x, &[var(&mut syms, "date"), var(&mut syms, "val")])],
+            &[
+                Expression { ops: vec![
+                    Op::Value(var(&mut syms, "date")),
+                    Op::Value(ID::Date(t2_timestamp)),
+                    Op::Binary(Binary::LessOrEqual),
+                ] },
+                Expression { ops: vec![
+                    Op::Value(var(&mut syms, "date")),
+                    Op::Value(ID::Date(0)),
+                    Op::Binary(Binary::GreaterOrEqual),
+                ] },
+            ],
+        );
+
 
         println!("testing r1: {}", syms.print_rule(&r1));
         let res = w.query_rule(r1);
@@ -935,6 +986,7 @@ mod tests {
             .collect::<HashSet<_>>();
         assert_eq!(res2, compared);
 
+        /*
         let r2 = constrained_rule(
             after,
             &[var(&mut syms, "date"), var(&mut syms, "val")],
@@ -948,6 +1000,24 @@ mod tests {
                     id: syms.insert("date") as u32,
                     kind: ConstraintKind::Date(DateConstraint::After(0)),
                 },
+            ],
+        );
+        */
+        let r2 = expressed_rule(
+            after,
+            &[var(&mut syms, "date"), var(&mut syms, "val")],
+            &[pred(x, &[var(&mut syms, "date"), var(&mut syms, "val")])],
+            &[
+                Expression { ops: vec![
+                    Op::Value(var(&mut syms, "date")),
+                    Op::Value(ID::Date(t2_timestamp)),
+                    Op::Binary(Binary::GreaterOrEqual),
+                ] },
+                Expression { ops: vec![
+                    Op::Value(var(&mut syms, "date")),
+                    Op::Value(ID::Date(0)),
+                    Op::Binary(Binary::GreaterOrEqual),
+                ] },
             ],
         );
 
@@ -979,6 +1049,7 @@ mod tests {
         w.add_fact(fact(x, &[&abc, &int(0), &string("test")]));
         w.add_fact(fact(x, &[&def, &int(2), &string("hello")]));
 
+        /*
         let res = w.query_rule(constrained_rule(
             int_set,
             &[var(&mut syms, "sym"), var(&mut syms, "str")],
@@ -988,6 +1059,21 @@ mod tests {
                 kind: ConstraintKind::Int(IntConstraint::In([0, 1].iter().cloned().collect())),
             }],
         ));
+        */
+
+        let res = w.query_rule(expressed_rule(
+            int_set,
+            &[var(&mut syms, "sym"), var(&mut syms, "str")],
+            &[pred(x, &[var(&mut syms, "sym"), var(&mut syms, "int"), var(&mut syms, "str")])],
+            &[
+                Expression { ops: vec![
+                    Op::Value(var(&mut syms, "int")),
+                    Op::Value(ID::Set([ID::Integer(0), ID::Integer(1)].iter().cloned().collect())),
+                    Op::Binary(Binary::In),
+                ] },
+            ],
+        ));
+
         for fact in &res {
             println!("\t{}", syms.print_fact(fact));
         }
@@ -1001,6 +1087,7 @@ mod tests {
         let abc_sym_id = syms.insert("abc");
         let ghi_sym_id = syms.insert("ghi");
 
+        /*
         let res = w.query_rule(constrained_rule(
             symbol_set,
             &[var(&mut syms, "symbol"), var(&mut syms, "int"), var(&mut syms, "str")],
@@ -1012,6 +1099,21 @@ mod tests {
                 )),
             }],
         ));
+        */
+
+        let res = w.query_rule(expressed_rule(
+            symbol_set,
+            &[var(&mut syms, "symbol"), var(&mut syms, "int"), var(&mut syms, "str")],
+            &[pred(x, &[var(&mut syms, "symbol"), var(&mut syms, "int"), var(&mut syms, "str")])],
+            &[
+                Expression { ops: vec![
+                    Op::Value(var(&mut syms, "symbol")),
+                    Op::Value(ID::Set([ID::Symbol(abc_sym_id), ID::Symbol(ghi_sym_id)].iter().cloned().collect())),
+                    Op::Binary(Binary::NotIn),
+                ] },
+            ],
+        ));
+
         for fact in &res {
             println!("\t{}", syms.print_fact(fact));
         }
@@ -1022,6 +1124,7 @@ mod tests {
             .collect::<HashSet<_>>();
         assert_eq!(res2, compared);
 
+        /*
         let res = w.query_rule(constrained_rule(
             string_set,
             &[var(&mut syms, "sym"), var(&mut syms, "int"), var(&mut syms, "str")],
@@ -1035,6 +1138,20 @@ mod tests {
                         .collect(),
                 )),
             }],
+        ));
+        */
+
+        let res = w.query_rule(expressed_rule(
+            string_set,
+            &[var(&mut syms, "sym"), var(&mut syms, "int"), var(&mut syms, "str")],
+            &[pred(x, &[var(&mut syms, "sym"), var(&mut syms, "int"), var(&mut syms, "str")])],
+            &[
+                Expression { ops: vec![
+                    Op::Value(var(&mut syms, "str")),
+                    Op::Value(ID::Set([ID::Str("test".to_string()), ID::Str("aaa".to_string())].iter().cloned().collect())),
+                    Op::Binary(Binary::In),
+                ] },
+            ],
         ));
         for fact in &res {
             println!("\t{}", syms.print_fact(fact));
@@ -1125,7 +1242,6 @@ mod tests {
                     Op::Value(var(&mut syms, "nb")),
                     Op::Binary(Binary::LessThan),
                 ] },
-
             ],
         );
 
