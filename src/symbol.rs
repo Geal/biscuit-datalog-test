@@ -140,7 +140,7 @@ impl SymbolTable {
     }
 
     pub fn print_expression(&self, e: &crate::expression::Expression) -> String {
-        e.print(self)
+        e.print(self).unwrap_or_else(|| format!("<invalid expression: {:?}>", e.ops))
     }
 
     pub fn print_rule(&self, r: &Rule) -> String {
