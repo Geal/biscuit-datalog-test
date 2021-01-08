@@ -12,7 +12,7 @@ pub mod error;
 pub use symbol::*;
 pub use expression::*;
 
-#[derive(Debug, Clone, PartialEq, Hash, Eq)]
+#[derive(Debug, Clone, PartialEq, Hash, Eq, PartialOrd, Ord)]
 pub enum ID {
     Symbol(Symbol),
     Variable(u32),
